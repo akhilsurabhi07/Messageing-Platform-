@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Send, Search, Check, UsersRound, User, Image as ImageIcon, FileText, Link as LinkIcon, Paperclip, X } from 'lucide-react';
-import { collection, getDocs, addDoc, query, where, orderBy, limit, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, getDocs, addDoc, query, where, orderBy, limit } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../firebase';
 import { AuthContext } from '../context/AuthContext';
 
 const Messages = () => {
@@ -23,6 +24,7 @@ const Messages = () => {
   
   const [sentMessages, setSentMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSending, setIsSending] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
@@ -92,6 +94,7 @@ const Messages = () => {
     if (!messageContent && attachments.length === 0 && !linkUrl) return;
 
     try {
+      setIsSending(true);
       let finalRecipients = [];
       let groupName = 'Individual';
 
@@ -111,8 +114,25 @@ const Messages = () => {
       }
 
       if (finalRecipients.length === 0) {
+        setIsSending(false);
         return alert('No recipients selected');
       }
+
+      // Upload attachments to Firebase Storage in parallel
+      const uploadPromises = attachments.map(async (attachment) => {
+        if (attachment.file) {
+          const fileRef = ref(storage, `chat_attachments/${Date.now()}_${attachment.name}`);
+          const snapshot = await uploadBytes(fileRef, attachment.file);
+          const downloadUrl = await getDownloadURL(snapshot.ref);
+          return {
+            name: attachment.name,
+            type: attachment.type,
+            url: downloadUrl
+          };
+        }
+        return attachment;
+      });
+      const uploadedAttachments = (await Promise.all(uploadPromises)).filter(Boolean);
 
       await addDoc(collection(db, 'messages'), {
         content: messageContent,
@@ -122,7 +142,7 @@ const Messages = () => {
         group_name: groupName,
         type: (activeTab === 'group' && !isSelectiveGroup) ? 'broadcast' : 'selective',
         link_url: linkUrl,
-        attachments: attachments.map(a => a.name),
+        attachments: uploadedAttachments,
         recipients: finalRecipients, // For Inbox query: where('recipients', 'array-contains', userId)
         created_at: new Date().toISOString()
       });
@@ -134,9 +154,11 @@ const Messages = () => {
       setSelectedUserIds([]);
       setIsSelectiveGroup(false);
       fetchData(); // refresh history
-    } catch (err) {
-      console.error('Error sending message:', err);
-      alert('Error sending message');
+    } catch (error) {
+      console.error("Error sending message: ", error);
+      alert(`Error sending message: ${error.message}\nIf this says "unauthorized" or "bucket not found", please go to your Firebase Console -> Storage and click "Get Started".`);
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -296,7 +318,7 @@ const Messages = () => {
             <div>
               <div className="flex justify-between items-center mb-2">
                 <label className="text-sm font-semibold">Attachments</label>
-                <label className="cursor-pointer text-xs font-bold text-info flex items-center gap-1">
+                <label className="cursor-pointer text-xs font-bold text-primary flex items-center gap-1 px-3 py-1.5 rounded border border-primary hover:bg-primary hover:text-white transition-colors" style={{borderColor: 'var(--primary)', color: 'var(--primary)'}}>
                   <Paperclip size={14} /> Add Files
                   <input type="file" multiple className="hidden" style={{display: 'none'}} onChange={handleFileChange} />
                 </label>
@@ -315,8 +337,8 @@ const Messages = () => {
               </div>
             </div>
 
-            <button type="submit" className="btn-primary" style={{marginTop: '1rem', width: '100%'}}>
-              <Send size={16} /> Send Now
+            <button type="submit" disabled={isSending} className="btn-primary" style={{marginTop: '1rem', width: '100%', opacity: isSending ? 0.7 : 1}}>
+              {isSending ? 'Uploading Files...' : <><Send size={16} /> Send Now</>}
             </button>
           </form>
         </div>
@@ -344,11 +366,57 @@ const Messages = () => {
                     {formatTime(msg.created_at)}
                   </span>
                 </div>
-                <p className="text-sm mb-2" style={{marginLeft: '36px', lineHeight: '1.5'}}>{msg.content}</p>
+                <p className="text-sm mb-2" style={{
+                  marginLeft: '36px', 
+                  lineHeight: '1.5',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}>{msg.content}</p>
                 {msg.link_url && (
-                  <a href={msg.link_url} target="_blank" rel="noreferrer" className="text-xs text-info flex items-center gap-1 ml-9 mb-2 hover:underline">
-                    <LinkIcon size={12} /> {msg.link_url}
+                  <a href={msg.link_url} target="_blank" rel="noreferrer" className="text-xs text-info flex items-center gap-1 ml-9 mb-2 hover:underline truncate" style={{maxWidth: '100%', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                    <LinkIcon size={12} className="inline mr-1" /> {msg.link_url}
                   </a>
+                )}
+                
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div className="mt-2 ml-9 flex flex-col gap-2">
+                    {msg.attachments.map((att, i) => {
+                      if (typeof att === 'string') {
+                        return (
+                          <div key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs w-fit" style={{backgroundColor: 'rgba(59, 130, 246, 0.05)', border: '1px solid var(--border-color)', color: 'var(--text-muted)'}}>
+                            <Check size={10} /> {att}
+                          </div>
+                        );
+                      }
+                      
+                      if (att.type && att.type.startsWith('image/')) {
+                        return (
+                          <div key={i} className="mt-1">
+                            <a href={att.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                              <img src={att.url} alt={att.name} className="max-w-[150px] max-h-[150px] rounded object-cover border" style={{borderColor: 'var(--border-color)'}} />
+                            </a>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <a 
+                          key={i} 
+                          href={att.url} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          download={att.name}
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-semibold w-fit transition-colors hover:bg-gray-100" 
+                          style={{backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-main)'}}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <FileText size={12} /> {att.name}
+                        </a>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             ))}

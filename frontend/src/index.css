@@ -372,3 +372,86 @@ button:disabled {
 .selection-item:hover {
   background-color: var(--border-color);
 }
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 1rem;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .sidebar-header {
+    padding: 0;
+  }
+
+  /* Bottom Navigation Bar */
+  .sidebar-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: var(--bg-sidebar);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    padding: 0.5rem 0;
+    z-index: 100;
+  }
+
+  .nav-item {
+    flex-direction: column;
+    padding: 0.5rem;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    margin-bottom: 0;
+    flex: 1;
+    text-align: center;
+    border-radius: 0;
+  }
+
+  .nav-item.active {
+    background-color: transparent;
+    color: var(--primary);
+    box-shadow: none;
+  }
+
+  .nav-item.active svg {
+    color: var(--primary);
+  }
+
+  .sidebar-footer {
+    padding: 0;
+    border-top: none;
+  }
+
+  .sidebar-footer .user-info,
+  .sidebar-footer .avatar {
+    display: none; /* Hide profile info on mobile header */
+  }
+
+  .main-content {
+    padding: 1rem;
+    padding-bottom: 80px; /* Make space for bottom nav bar */
+  }
+
+  /* Form Elements */
+  input, select, textarea {
+    font-size: 1rem; /* Prevent iOS zoom */
+  }
+
+  .btn-outline {
+    border: none; /* Make logout button cleaner on mobile */
+    font-weight: bold;
+    color: var(--danger);
+  }
+}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { MessageSquare, Bell, CheckCircle, ExternalLink } from 'lucide-react';
-import { collection, query, where, orderBy, getDocs, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase';
 import { AuthContext } from '../context/AuthContext';
 
@@ -10,33 +10,29 @@ const Inbox = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      fetchInbox();
-    }
-  }, [user]);
+    if (!user) return;
 
-  const fetchInbox = async () => {
-    try {
-      // Fetch messages where user.id is in the recipients array
-      const q = query(
-        collection(db, 'messages'),
-        where('recipients', 'array-contains', user.id),
-        orderBy('created_at', 'desc')
-      );
-      
-      const querySnapshot = await getDocs(q);
+    // Fetch messages where user.id is in the recipients array in real-time
+    const q = query(
+      collection(db, 'messages'),
+      where('recipients', 'array-contains', user.id),
+      orderBy('created_at', 'desc')
+    );
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const messageList = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-      
       setMessages(messageList);
-    } catch (err) {
-      console.error('Error fetching inbox:', err);
-    } finally {
       setLoading(false);
-    }
-  };
+    }, (err) => {
+      console.error('Error fetching inbox:', err);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const markAsRead = async (msgId) => {
     try {
@@ -128,12 +124,44 @@ const Inbox = () => {
                 )}
 
                 {attachments.length > 0 && (
-                  <div className="mt-3 ml-10 flex flex-wrap gap-2">
-                    {attachments.map((name, i) => (
-                      <div key={i} className="flex items-center gap-1 px-2 py-1 rounded text-xs" style={{backgroundColor: 'rgba(59, 130, 246, 0.05)', border: '1px solid var(--border-color)', color: 'var(--text-muted)'}}>
-                        <CheckCircle size={10} /> {name}
-                      </div>
-                    ))}
+                  <div className="mt-3 ml-10 flex flex-col gap-2">
+                    {attachments.map((att, i) => {
+                      if (typeof att === 'string') {
+                        // Legacy string attachment
+                        return (
+                          <div key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs w-fit" style={{backgroundColor: 'rgba(59, 130, 246, 0.05)', border: '1px solid var(--border-color)', color: 'var(--text-muted)'}}>
+                            <CheckCircle size={10} /> {att}
+                          </div>
+                        );
+                      }
+                      
+                      // New object attachment
+                      if (att.type && att.type.startsWith('image/')) {
+                        return (
+                          <div key={i} className="mt-1">
+                            <a href={att.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                              <img src={att.url} alt={att.name} className="max-w-[200px] max-h-[200px] rounded object-cover border" style={{borderColor: 'var(--border-color)'}} />
+                            </a>
+                          </div>
+                        );
+                      }
+
+                      // File attachment
+                      return (
+                        <a 
+                          key={i} 
+                          href={att.url} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          download={att.name}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded text-xs font-semibold w-fit transition-colors hover:bg-gray-100" 
+                          style={{backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-main)'}}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink size={12} /> Download {att.name}
+                        </a>
+                      );
+                    })}
                   </div>
                 )}
               </div>

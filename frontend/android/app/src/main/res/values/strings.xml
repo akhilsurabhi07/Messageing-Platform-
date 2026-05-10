@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BroadcastHub</string>
+    <string name="title_activity_main">BroadcastHub</string>
+    <string name="package_name">com.broadcasthub.app</string>
+    <string name="custom_url_scheme">com.broadcasthub.app</string>
+</resources>
