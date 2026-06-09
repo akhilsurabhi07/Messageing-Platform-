@@ -6,7 +6,7 @@
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
-    "public": "frontend/dist",
+    "public": "Communication.Plat/dist",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -23,5 +23,8 @@
     "providers": {
       "emailPassword": true
     }
+  },
+  "storage": {
+    "rules": "storage.rules"
   }
 }

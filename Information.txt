@@ -1,0 +1,29 @@
+That pop-up is happening because your application is built as a Progressive Web App (PWA)!
+
+PWAs are a modern web technology created by Google and Apple that allows standard websites to behave exactly like native mobile or desktop apps, without needing to be downloaded from the Google Play Store or Apple App Store.
+
+Here is exactly how it is happening under the hood in your code:
+
+1. The Vite PWA Plugin
+In your project, we are using a tool called vite-plugin-pwa. When we run the npm run build command, this plugin automatically generates two very important hidden files for your app:
+
+2. The Web App Manifest (manifest.webmanifest)
+This is a small JSON file that tells the browser, "Hey, I am not just a website, I am a fully-fledged app!" It provides the browser with critical information, such as:
+
+The App Name: What the app should be called on the user's home screen.
+The App Icons: The logos it should use for the home screen icon on iOS, Android, and Windows.
+Display Mode ("display": "standalone"): This tells the phone to hide the browser URL bar and back buttons when the app is opened, making it look 100% native.
+3. The Service Worker (sw.js)
+This is a powerful JavaScript file that runs in the background, separate from your web page.
+
+The Service Worker actively downloads and caches (saves) your HTML, CSS, JavaScript, and images directly onto the user's device.
+Because all the files are saved to the device, the app loads instantly the next time they open it, even if they have a slow internet connection.
+The Trigger (Why the pop-up appears)
+Modern browsers like Chrome, Edge, and Safari have built-in "PWA Detectors". When you open your website, the browser secretly checks for two things:
+
+Does this site have a valid manifest.webmanifest?
+Does this site have an active Service Worker handling offline caching?
+Because your app passes both of these tests flawlessly, the browser automatically triggers the "Add to Home Screen" / "Install App" pop-up.
+
+When a user clicks "Install", their phone literally downloads your cached files and places an icon on their home screen. From that point on, it runs in its own native app window, completely independent of the web browser!
+
